@@ -3,6 +3,11 @@
 #include <string>
 #include <vulkan/vulkan.hpp>
 
+namespace xihe::sg
+{
+struct Meshlet;
+}
+
 namespace xihe
 {
 
@@ -29,5 +34,8 @@ struct MeshPrimitiveData
 	std::vector<uint8_t>             indices;
 	vk::IndexType                    index_type;
 	uint32_t                         index_count;
+	std::vector<std::uint32_t>                           meshletVertexIndices;        // all vertices of all meshlets (indices of vertices inside original vertex buffer, ie 'vertices' in this struct)
+	std::vector<std::uint32_t>                           meshletIndices;              // all triangles of all meshlets (indices of vertices inside meshletVertexIndices)
+	std::vector<xihe::sg::Meshlet>                       meshlets;
 };
 }

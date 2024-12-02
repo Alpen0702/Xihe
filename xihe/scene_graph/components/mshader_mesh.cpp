@@ -6,6 +6,7 @@
 #include "rendering/subpass.h"
 #include "rendering/subpasses/meshlet_subpass.h"
 #include "scene_graph/components/material.h"
+#include "mshader_lod.h"
 
 namespace
 {
@@ -24,11 +25,11 @@ glm::vec4 convert_to_vec4(const std::vector<uint8_t> &data, uint32_t offset, flo
 }        // namespace
 namespace xihe::sg
 {
-MshaderMesh::MshaderMesh(const MeshPrimitiveData &primitive_data, backend::Device &device)
+MshaderMesh::MshaderMesh(MeshPrimitiveData &primitive_data, backend::Device &device)
 {
 	auto pos_it    = primitive_data.attributes.find("position");
 	auto normal_it = primitive_data.attributes.find("normal");
-	auto uv_it     = primitive_data.attributes.find("texcoord_0");
+	auto uv_it     = primitive_data.attributes.find("normal");
 
 	if (pos_it == primitive_data.attributes.end() || normal_it == primitive_data.attributes.end() || uv_it == primitive_data.attributes.end())
 	{
@@ -70,7 +71,8 @@ MshaderMesh::MshaderMesh(const MeshPrimitiveData &primitive_data, backend::Devic
 	}
 
 	std::vector<Meshlet> meshlets;
-	prepare_meshlets(meshlets, primitive_data, device);
+	//prepare_meshlets(meshlets, primitive_data, device);
+	use_lod_meshlets(meshlets, primitive_data, device);
 
 	{
 		backend::BufferBuilder buffer_builder{meshlets.size() * sizeof(Meshlet)};
@@ -245,6 +247,8 @@ void MshaderMesh::prepare_meshlets(std::vector<Meshlet> &meshlets, const MeshPri
 		meshlet.cone_axis   = glm::vec3(meshlet_bounds.cone_axis[0], meshlet_bounds.cone_axis[1], meshlet_bounds.cone_axis[2]);
 		meshlet.cone_cutoff = meshlet_bounds.cone_cutoff;
 
+		meshlet.cone_apex = glm::vec3(meshlet_bounds.cone_apex[0], meshlet_bounds.cone_apex[1], meshlet_bounds.cone_apex[2]);
+
 		meshlets.push_back(meshlet);
 	}
 
@@ -268,6 +272,44 @@ void MshaderMesh::prepare_meshlets(std::vector<Meshlet> &meshlets, const MeshPri
 	{
 		std::vector<MeshDrawCounts> counts = {{meshlet_count_}};
 		backend::BufferBuilder    buffer_builder{sizeof(MeshDrawCounts)};
+		buffer_builder.with_usage(vk::BufferUsageFlagBits::eStorageBuffer)
+		    .with_vma_usage(VMA_MEMORY_USAGE_CPU_TO_GPU);
+		mesh_draw_counts_buffer_ = std::make_unique<backend::Buffer>(device, buffer_builder);
+
+		mesh_draw_counts_buffer_->update(counts);
+	}
+}
+
+void MshaderMesh::use_lod_meshlets(std::vector<Meshlet> &meshlets, MeshPrimitiveData &primitive_data, backend::Device &device)
+{
+	generateClusterHierarchy(primitive_data);
+	
+	// 把primitive_data.meshlets的数据转换到meshlets中
+	for (auto &meshlet : primitive_data.meshlets)
+	{
+		meshlets.push_back(meshlet);
+	}
+	
+	{
+		backend::BufferBuilder buffer_builder{primitive_data.meshletVertexIndices.size() * 4};
+		buffer_builder.with_usage(vk::BufferUsageFlagBits::eStorageBuffer)
+		    .with_vma_usage(VMA_MEMORY_USAGE_CPU_TO_GPU);
+		meshlet_vertices_buffer_ = std::make_unique<backend::Buffer>(device, buffer_builder);
+		meshlet_vertices_buffer_->update(primitive_data.meshletVertexIndices);
+	}
+
+	{
+		backend::BufferBuilder buffer_builder{primitive_data.meshletIndices.size() * 4};
+		buffer_builder.with_usage(vk::BufferUsageFlagBits::eStorageBuffer)
+		    .with_vma_usage(VMA_MEMORY_USAGE_CPU_TO_GPU);
+		packed_meshlet_indices_buffer_ = std::make_unique<backend::Buffer>(device, buffer_builder);
+		packed_meshlet_indices_buffer_->update(primitive_data.meshletIndices);
+	}
+
+	meshlet_count_ = meshlets.size();
+	{
+		std::vector<MeshDrawCounts> counts = {{meshlet_count_}};
+		backend::BufferBuilder      buffer_builder{sizeof(MeshDrawCounts)};
 		buffer_builder.with_usage(vk::BufferUsageFlagBits::eStorageBuffer)
 		    .with_vma_usage(VMA_MEMORY_USAGE_CPU_TO_GPU);
 		mesh_draw_counts_buffer_ = std::make_unique<backend::Buffer>(device, buffer_builder);

@@ -28,6 +28,9 @@ struct s_meshlet
     float radius;
     vec3 cone_axis;
     float cone_cutoff;
+
+    vec3 cone_apex;
+    uint lod;
 };
 
 struct s_vertex
@@ -103,10 +106,15 @@ void main(void)
     // Set each triangle's vertex indices using per-meshlet triangles
     for (uint i = 0; i < triangle_count; ++i)
     {
-        uint packed_triangle = mtb.meshlet_triangles[meshlet.triangle_offset + i];
-        uint idx0 = (packed_triangle >> 0) & 0xFFu;
-        uint idx1 = (packed_triangle >> 8) & 0xFFu;
-        uint idx2 = (packed_triangle >> 16) & 0xFFu;
+        uint idx0 = mtb.meshlet_triangles[meshlet.triangle_offset + 3 * i];
+        uint idx1 = mtb.meshlet_triangles[meshlet.triangle_offset + 3 * i + 1];
+        uint idx2 = mtb.meshlet_triangles[meshlet.triangle_offset + 3 * i + 2];
+        
+        // uint packed_triangle = mtb.meshlet_triangles[meshlet.triangle_offset + i];
+        
+        // uint idx0 = (packed_triangle >> 0) & 0xFFu;
+        // uint idx1 = (packed_triangle >> 8) & 0xFFu;
+        // uint idx2 = (packed_triangle >> 16) & 0xFFu;
 
         gl_PrimitiveTriangleIndicesEXT[i] = uvec3(idx0, idx1, idx2);
     }

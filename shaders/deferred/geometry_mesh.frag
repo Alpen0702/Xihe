@@ -57,4 +57,18 @@ void main(void)
 #ifdef SHOW_MESHLET_VIEW
     o_albedo = v_in.pos;
 #endif
+
+    //  // 引入条件判断和复杂计算，增加计算量
+    // float a = 0;
+    // float b = 1.1;
+    // for (float i = 0; i < 100; i+=0.01) {
+    //     if (int(100*i) % 2 == 0) {
+    //         o_albedo.x = float(a) * b;
+    //     } else {
+    //         o_albedo.y = float(a) * b;
+    //     }
+    //     //a = a + 0.1;
+    //     b = 1.0/b;  // 使用更复杂的数学操作来使计算更耗时
+    // }
+    
 }
