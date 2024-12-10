@@ -42,8 +42,8 @@ bool xihe::TestApp::prepare(Window *window)
 	     vk::ImageUsageFlagBits::eInputAttachment});
 
 	//load_scene("scenes/sponza/Sponza01.gltf");
-	load_scene("scenes/Model29-Welded.gltf");
-	//load_scene("scenes/9.gltf");
+	//load_scene("scenes/Model29-Welded.gltf");
+	load_scene("scenes/9.gltf");
 	assert(scene_ && "Scene not loaded");
 
 	update_bindless_descriptor_sets();
@@ -200,6 +200,7 @@ void xihe::TestApp::draw_gui()
 		    ImGui::Checkbox("Meshlet", &show_meshlet_view_);
 		    ImGui::Checkbox("视域静留", &freeze_frustum_);
 		    ImGui::Checkbox("级联阴影", &show_cascade_view_);
+		    //ImGui::Text("Meshlets Sum: %d", MshaderMesh::get_mesh_draw_counts_buffer());
 	    },
 	    /* lines = */ 2);
 }

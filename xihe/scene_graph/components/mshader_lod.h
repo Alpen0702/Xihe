@@ -41,16 +41,24 @@ struct MeshletEdgeHasher
 	}
 };
 
-//struct VertexWrapper
-//{
-//	const Vertex *vertices = nullptr;
-//	std::size_t           index    = 0;
-//
-//	glm::vec3 getPosition() const
-//	{
-//		return vertices[index].pos.xyz;
-//	}
-//};
+struct VertexWrapper
+{
+	const float *vertices = nullptr;
+	std::size_t           index    = 0;
+
+	VertexWrapper() :
+	    vertices(nullptr), index(0)
+	{}
+
+	VertexWrapper(const float *vertices, const std::size_t index) :
+	    vertices(vertices), index(index)
+	{}
+
+	glm::vec3 getPosition() const
+	{
+		return glm::vec3(vertices[3 * index], vertices[3 * index + 1], vertices[3 * index + 2]);
+	}
+};
 
 void generateClusterHierarchy(MeshPrimitiveData &primitive);
 }        // namespace xihe::sg
