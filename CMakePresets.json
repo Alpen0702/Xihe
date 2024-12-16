@@ -8,8 +8,9 @@
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "cl.exe",
-                "CMAKE_CXX_COMPILER": "cl.exe"
+              "CMAKE_C_COMPILER": "cl.exe",
+              "CMAKE_CXX_COMPILER": "cl.exe",
+              "CMAKE_TOOLCHAIN_FILE": "E:\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
             },
             "condition": {
                 "type": "equals",
@@ -26,7 +27,8 @@
                 "strategy": "external"
             },
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
+              "CMAKE_BUILD_TYPE": "Debug",
+              "CMAKE_TOOLCHAIN_FILE": "E:\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
             }
         },
         {
@@ -34,7 +36,8 @@
             "displayName": "x64 Release",
             "inherits": "x64-debug",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
+              "CMAKE_BUILD_TYPE": "Release",
+              "CMAKE_TOOLCHAIN_FILE": "E:\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
             }
         }
     ]

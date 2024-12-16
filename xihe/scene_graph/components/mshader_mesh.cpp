@@ -58,7 +58,7 @@ MshaderMesh::MshaderMesh(MeshPrimitiveData &primitive_data, backend::Device &dev
 		std::memcpy(&v, &uv_attr.data[uv_offset + sizeof(float)], sizeof(float));
 		glm::vec4 pos    = convert_to_vec4(pos_attr.data, pos_offset, u);
 		glm::vec4 normal = convert_to_vec4(normal_attr.data, normal_offset, v);
-		packed_vertex_data.push_back({pos, normal});
+		packed_vertex_data.push_back  ({pos, normal});
 	}
 	{
 		backend::BufferBuilder buffer_builder{packed_vertex_data.size() * sizeof(PackedVertex)};

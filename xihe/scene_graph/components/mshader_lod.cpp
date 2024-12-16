@@ -2,6 +2,8 @@
 #include "KDTree.h"
 #include <glm/gtx/norm.hpp>
 #include <common/timer.h>
+#include <tbb/parallel_for.h>
+
 #define USE_WELDING 1
 namespace xihe::sg
 {
@@ -358,15 +360,15 @@ static void appendMeshlets(MeshPrimitiveData &primitive, std::span<std::uint32_t
 	primitive.meshletIndices.resize(indexOffset + indexCount);
 	primitive.meshlets.resize(meshletOffset + meshletCount);        // remove over-allocated meshlets
 
-    for (std::size_t index = 0; index < vertexCount; ++index) {
-        primitive.meshletVertexIndices[vertexOffset + index] = meshletVertexIndices[index];
-    }
-
-    for (std::size_t index = 0; index < indexCount; ++index) {
+    //for (std::size_t index = 0; index < vertexCount; ++index) {
+    //    primitive.meshletVertexIndices[vertexOffset + index] = meshletVertexIndices[index];
+    //}
+	
+    /*for (std::size_t index = 0; index < indexCount; ++index) {
         primitive.meshletIndices[indexOffset + index] = meshletTriangles[index];
-    }
+    }*/
 
-    for (std::size_t index = 0; index < meshletCount; ++index) {
+    /*for (std::size_t index = 0; index < meshletCount; ++index) {
         auto &meshoptMeshlet = meshoptMeshlets[index];
         auto &meshlet  = primitive.meshlets[meshletOffset + index];
 
@@ -388,8 +390,38 @@ static void appendMeshlets(MeshPrimitiveData &primitive, std::span<std::uint32_t
 		meshlet.cone_cutoff = meshlet_bounds.cone_cutoff;
 
 		meshlet.cone_apex = glm::vec3(meshlet_bounds.cone_apex[0], meshlet_bounds.cone_apex[1], meshlet_bounds.cone_apex[2]);
+    }*/
 
-    }
+	// 改写成parallel for
+	tbb::parallel_for(std::size_t(0), vertexCount, [&](std::size_t index) {
+		primitive.meshletVertexIndices[vertexOffset + index] = meshletVertexIndices[index];
+	});
+	tbb::parallel_for(std::size_t(0), indexCount, [&](std::size_t index) {
+		primitive.meshletIndices[indexOffset + index] = meshletTriangles[index];
+	});
+	tbb::parallel_for(std::size_t(0), meshletCount, [&](std::size_t index) {
+		auto &meshoptMeshlet = meshoptMeshlets[index];
+		auto &meshlet        = primitive.meshlets[meshletOffset + index];
+
+		meshlet.vertex_offset = vertexOffset + meshoptMeshlet.vertex_offset;
+		meshlet.vertex_count  = meshoptMeshlet.vertex_count;
+
+		meshlet.triangle_offset = indexOffset + meshoptMeshlet.triangle_offset;
+		meshlet.triangle_count  = meshoptMeshlet.triangle_count;
+
+		meshopt_Bounds meshlet_bounds = meshopt_computeMeshletBounds(
+		    meshletVertexIndices.data() + meshoptMeshlet.vertex_offset,
+		    meshletTriangles.data() + meshoptMeshlet.triangle_offset,
+		    meshoptMeshlet.triangle_count, vertex_positions, primitive.vertex_count, sizeof(float) * 3);
+
+		meshlet.center = glm::vec3(meshlet_bounds.center[0], meshlet_bounds.center[1], meshlet_bounds.center[2]);
+		meshlet.radius = meshlet_bounds.radius;
+
+		meshlet.cone_axis   = glm::vec3(meshlet_bounds.cone_axis[0], meshlet_bounds.cone_axis[1], meshlet_bounds.cone_axis[2]);
+		meshlet.cone_cutoff = meshlet_bounds.cone_cutoff;
+
+		meshlet.cone_apex = glm::vec3(meshlet_bounds.cone_apex[0], meshlet_bounds.cone_apex[1], meshlet_bounds.cone_apex[2]);
+	});
 }
 
 /**
@@ -460,15 +492,26 @@ std::vector<std::int64_t> mergeByDistance(const MeshPrimitiveData &primitive, co
 	std::vector<std::vector<std::size_t>> neighborsForAllVertices;
 	neighborsForAllVertices.resize(groupVerticesPreWeld.size());
 
-	for (std::size_t v = 0; v < groupVerticesPreWeld.size(); v++)
-	{
+
+
+	tbb::parallel_for(std::size_t(0), groupVerticesPreWeld.size(), [&](std::size_t v) {
 		const VertexWrapper &currentVertexWrapped = groupVerticesPreWeld[v];
 		if (boundary[currentVertexWrapped.index])
 		{
-			continue;        // no need to compute neighbors
+			return;        // no need to compute neighbors
 		}
 		kdtree.getNeighbors(neighborsForAllVertices[v], currentVertexWrapped, maxDistance);
-	}
+	});
+
+	//for (std::size_t v = 0; v < groupVerticesPreWeld.size(); v++)
+	//{
+	//	const VertexWrapper &currentVertexWrapped = groupVerticesPreWeld[v];
+	//	if (boundary[currentVertexWrapped.index])
+	//	{
+	//		continue;        // no need to compute neighbors
+	//	}
+	//	kdtree.getNeighbors(neighborsForAllVertices[v], currentVertexWrapped, maxDistance);
+	//}
 
 	auto vertex_positions = reinterpret_cast<const float *>(primitive.attributes.at("position").data.data());
 
@@ -490,7 +533,8 @@ std::vector<std::int64_t> mergeByDistance(const MeshPrimitiveData &primitive, co
 					// due to the way we iterate, all indices starting from v will not be remapped yet
 					continue;
 				}
-				const glm::vec3 &otherVertexPos = glm::vec3(vertex_positions[3 * vertexRemap[groupVerticesPreWeld[neighbor].index]], vertex_positions[3 * vertexRemap[groupVerticesPreWeld[neighbor].index] + 1], vertex_positions[3 * vertexRemap[groupVerticesPreWeld[neighbor].index] + 2]);
+				auto otherVertexWrapped            = VertexWrapper(vertex_positions, vertexRemap[groupVerticesPreWeld[neighbor].index]);
+				const glm::vec3 &otherVertexPos     = otherVertexWrapped.getPosition();
 				const float vertexDistanceSq = glm::distance2(currentVertexPos, otherVertexPos);
 				if (vertexDistanceSq <= maxDistanceSq)
 				{
@@ -515,6 +559,8 @@ std::vector<std::int64_t> mergeByDistance(const MeshPrimitiveData &primitive, co
 
 void generateClusterHierarchy(MeshPrimitiveData &primitive)
 {
+	LOGI("Building lod...");
+
 	Timer timer;
 	timer.start();
 
@@ -636,12 +682,14 @@ void generateClusterHierarchy(MeshPrimitiveData &primitive)
 					{
 						const std::size_t vertexIndex = triangle[vertex];
 
-						// map vertex index valid for entire to a smaller vertex buffer just for this group
+						// 总体的index到group内index的映射
 						auto [iter, bWasNew] = mesh2groupVertexRemap.try_emplace(vertexIndex);
 						if (bWasNew)
 						{
 							iter->second = groupVertexBuffer.size();
-							groupVertexBuffer.push_back(glm::vec3(vertex_positions[iter->second], vertex_positions[iter->second + 1], vertex_positions[iter->second + 2]));
+							//groupVertexBuffer.push_back(glm::vec3(vertex_positions[iter->second], vertex_positions[iter->second + 1], vertex_positions[iter->second + 2]));
+							groupVertexBuffer.push_back(VertexWrapper(vertex_positions, vertexIndex).getPosition());
+							//groupVertexBuffer.push_back(VertexWrapper(vertex_positions, iter->second).getPosition());
 						}
 						groupVertexIndices.push_back(iter->second);
 					}
@@ -687,22 +735,22 @@ void generateClusterHierarchy(MeshPrimitiveData &primitive)
 			// TODO: if cluster is not simplified, use it for next LOD
 			if (simplifiedIndexCount > 0 && simplifiedIndexCount != groupVertexIndices.size())
 			{
-				float localScale = meshopt_simplifyScale(&groupVertexBuffer[0].x, groupVertexBuffer.size(), sizeof(glm::vec3));
-				// TODO: numerical stability
-				float meshSpaceError = simplificationError * localScale;
-				float parentError    = 0.0f;
+				//float localScale = meshopt_simplifyScale(&groupVertexBuffer[0].x, groupVertexBuffer.size(), sizeof(glm::vec3));
+				//// TODO: numerical stability
+				//float meshSpaceError = simplificationError * localScale;
+				//float parentError    = 0.0f;
 
-				glm::vec3 min{+INFINITY, +INFINITY, +INFINITY};
-				glm::vec3 max{-INFINITY, -INFINITY, -INFINITY};
+				//glm::vec3 min{+INFINITY, +INFINITY, +INFINITY};
+				//glm::vec3 max{-INFINITY, -INFINITY, -INFINITY};
 
-				// remap simplified index buffer to mesh-wide vertex indices
+				// 把小buffer中的index映射回总体的index
 				for (auto &index : simplifiedIndexBuffer)
 				{
 					index = group2meshVertexRemap[index];
 
-					const glm::vec3 vertexPos = glm::vec3{vertex_positions[3 * index], vertex_positions[3 * index + 1], vertex_positions[3 * index + 2]};
-					min                       = glm::min(min, vertexPos);
-					max                       = glm::max(max, vertexPos);
+					//const glm::vec3 vertexPos = glm::vec3{vertex_positions[3 * index], vertex_positions[3 * index + 1], vertex_positions[3 * index + 2]};
+					//min                       = glm::min(min, vertexPos);
+					//max                       = glm::max(max, vertexPos);
 				}
 
 				// group index is replaced on next iteration of loop (if there is one) to group the meshlets together based on partitionning

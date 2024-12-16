@@ -17,7 +17,19 @@ link_directories("F:/MyColds/METIS/build/windows/libmetis/Release")
 
 add_compile_definitions($<$<CONFIG:DEBUG>:XH_DEBUG>)
 
+# SET(CMAKE_TOOLCHAIN_FILE "E:/vcpkg/scripts/buildsystems/vcpkg.cmake")
+
+
 project ("Xihe")
+
+message(STATUS "CMAKE_TOOLCHAIN_FILE: ${CMAKE_TOOLCHAIN_FILE}")
+
+# set(TBB_DIR "E:/vcpkg/packages/tbb_x64-windows/share/tbb")
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};E:/vcpkg/packages/tbb_x64-windows/share;E:/vcpkg/packages/tbb_x64-windows/debug/bin")
+
+
+find_package(TBB CONFIG REQUIRED)
+
 
 add_subdirectory("third_party")
 
